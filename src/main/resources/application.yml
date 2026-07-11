@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: job-seeker
+
+  # H2 in-memory database (default / dev profile)
+  datasource:
+    url: jdbc:h2:mem:jobseekerdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+# RapidAPI config — value injected by DotenvConfig from .env
+rapidapi:
+  key: ${RAPIDAPI_KEY}
+  host: active-jobs-db.p.rapidapi.com
+  base-url: https://active-jobs-db.p.rapidapi.com
+
+# Default search parameters (can be overridden per request)
+jobapi:
+  defaults:
+    time-frame: 24h
+    limit: 10
+    offset: 0
+    description-format: text
+
+server:
+  port: 8080
+
+---
+# Production profile: switch to PostgreSQL
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:jobseeker}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+  h2:
+    console:
+      enabled: false
