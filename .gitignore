@@ -1,20 +1,14 @@
-# Secrets — never commit this
+# Secrets
 .env
 
-# Maven build output
-target/
-*.class
+# Dependencies & build
+node_modules/
+dist/
 
-# IDE
-.idea/
-*.iml
-.vscode/
-*.DS_Store
+# SQLite database (persisted locally, not in repo)
+data/*.db
+data/*.db-shm
+data/*.db-wal
 
-# Spring Boot fat jar
-*.jar
-!.mvn/wrapper/maven-wrapper.jar
-
-# Logs
-*.log
-logs/
+# OS
+.DS_Store
