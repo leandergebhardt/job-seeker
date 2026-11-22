@@ -144,3 +144,7 @@ job-seeker/
 |----------|----------|---------|-------------|
 | `RAPIDAPI_KEY` | Yes | — | API key from rapidapi.com |
 | `PORT` | No | `3000` | Port Express listens on |
+
+For Netlify deployments, set `RAPIDAPI_KEY` in the site's environment variables.
+The Netlify Function serves job search requests; saving jobs and managing applications
+still require the Express API and its persistent SQLite database.

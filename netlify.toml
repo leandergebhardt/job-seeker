@@ -4,3 +4,8 @@
 
 [build.environment]
   SECRETS_SCAN_OMIT_KEYS = "DB_HOST,DB_NAME"
+
+[[redirects]]
+  from = "/api/jobs/search"
+  to = "/.netlify/functions/jobs-search"
+  status = 200
