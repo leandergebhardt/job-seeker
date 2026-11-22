@@ -1,6 +1,9 @@
 # Secrets
 .env
 
+# IDE workspace state
+.idea/workspace.xml
+
 # Dependencies & build
 node_modules/
 dist/
