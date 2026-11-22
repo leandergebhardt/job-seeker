@@ -1,15 +1,23 @@
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="modelValue" class="overlay" @click.self="$emit('update:modelValue', false)">
-        <div class="modal" role="dialog" aria-modal="true">
+      <div v-if="modelValue" class="overlay" @click.self="close">
+        <div
+          ref="dialog"
+          class="modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="apply-dialog-title"
+          tabindex="-1"
+          @keydown="onDialogKeydown"
+        >
 
           <div class="modal-header">
             <div>
-              <h2 class="modal-title">Record application</h2>
+              <h2 id="apply-dialog-title" class="modal-title">Record application</h2>
               <p class="modal-sub">{{ job?.title }} · {{ job?.company }}</p>
             </div>
-            <button class="close-btn" @click="$emit('update:modelValue', false)">✕</button>
+            <button class="close-btn" aria-label="Close application dialog" :disabled="loading" @click="close">✕</button>
           </div>
 
           <div class="modal-body">
@@ -37,13 +45,13 @@
           </div>
 
           <div class="modal-footer">
-            <button class="btn-cancel" @click="$emit('update:modelValue', false)">Cancel</button>
+            <button class="btn-cancel" :disabled="loading" @click="close">Cancel</button>
             <button class="btn-submit" :disabled="loading" @click="submit">
               {{ loading ? 'Saving…' : 'Save application' }}
             </button>
           </div>
 
-          <p v-if="error" class="modal-error">{{ error }}</p>
+          <p v-if="error" class="modal-error" role="alert">{{ error }}</p>
         </div>
       </div>
     </Transition>
@@ -51,7 +59,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { appsApi } from '../api.js'
 
 const props = defineProps({ modelValue: Boolean, job: Object })
@@ -63,9 +71,55 @@ const blank = () => ({ status: 'APPLIED', resumeUrl: '', notes: '', coverLetter:
 const form  = ref(blank())
 const loading = ref(false)
 const error   = ref('')
+const dialog = ref(null)
+let previouslyFocused = null
 
 // Reset form each time modal opens
-watch(() => props.modelValue, (v) => { if (v) { form.value = blank(); error.value = '' } })
+watch(() => props.modelValue, async (open) => {
+  if (open) {
+    form.value = blank()
+    error.value = ''
+    previouslyFocused = document.activeElement
+    await nextTick()
+    dialog.value?.querySelector('select, input, textarea, button')?.focus()
+  } else {
+    await nextTick()
+    if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected && previouslyFocused.getClientRects().length) {
+      previouslyFocused.focus()
+    }
+    previouslyFocused = null
+  }
+})
+
+function close() {
+  if (!loading.value) emit('update:modelValue', false)
+}
+
+function onDialogKeydown(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    close()
+    return
+  }
+
+  if (event.key !== 'Tab') return
+  const focusable = [...dialog.value.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex="-1"])')]
+  if (focusable.length === 0) {
+    event.preventDefault()
+    dialog.value.focus()
+    return
+  }
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
 
 async function submit() {
   if (!props.job) return
@@ -204,4 +258,26 @@ textarea { resize: vertical; }
 /* transitions */
 .modal-enter-active, .modal-leave-active { transition: all 200ms ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.97) translateY(6px); }
+
+@media (max-width: 520px) {
+  .overlay {
+    padding: 12px;
+  }
+
+  .modal-header {
+    padding: 18px 18px 0;
+  }
+
+  .modal-body {
+    padding: 18px;
+  }
+
+  .modal-footer {
+    padding: 0 18px 18px;
+  }
+
+  .modal-error {
+    padding: 0 18px 14px;
+  }
+}
 </style>

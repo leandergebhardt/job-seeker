@@ -1,5 +1,5 @@
 <template>
-  <div class="view">
+  <div class="view" :aria-busy="loading">
     <div class="view-header">
       <div>
         <h2 class="view-title">Saved jobs</h2>
@@ -10,13 +10,15 @@
       </button>
     </div>
 
+    <p v-if="error" class="error-msg" role="alert">{{ error }}</p>
+
     <!-- Loading skeleton -->
-    <div v-if="loading" class="skeleton-list">
+    <div v-if="loading" class="skeleton-list" role="status" aria-label="Loading saved jobs">
       <div v-for="n in 3" :key="n" class="skeleton" />
     </div>
 
     <!-- Empty -->
-    <div v-else-if="jobs.length === 0" class="empty-state">
+    <div v-else-if="jobs.length === 0 && !error" class="empty-state">
       <div class="empty-icon">♡</div>
       <p>No saved jobs yet.<br/>Use the Search tab to find and save positions.</p>
     </div>
@@ -42,7 +44,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, inject } from 'vue'
+import { ref, onMounted, onDeactivated, inject } from 'vue'
 import { jobsApi } from '../api.js'
 import JobCard    from '../components/JobCard.vue'
 import ApplyModal from '../components/ApplyModal.vue'
@@ -52,16 +54,18 @@ const showToast = inject('toast')
 const jobs     = ref([])
 const loading  = ref(false)
 const savingId = ref(null)
+const error    = ref('')
 
 const modalOpen   = ref(false)
 const selectedJob = ref(null)
 
 async function load() {
   loading.value = true
+  error.value = ''
   try {
     jobs.value = await jobsApi.saved()
   } catch (e) {
-    showToast(e.message, 'error')
+    error.value = e.message
   } finally {
     loading.value = false
   }
@@ -89,6 +93,10 @@ function onApplied() {
   showToast('Application recorded')
 }
 
+onDeactivated(() => {
+  if (modalOpen.value) modalOpen.value = false
+})
+
 onMounted(load)
 </script>
 
@@ -96,6 +104,7 @@ onMounted(load)
 .view {
   padding: 28px 32px;
   max-width: 820px;
+  width: 100%;
 }
 
 .view-header {
@@ -167,4 +176,16 @@ onMounted(load)
 }
 
 .empty-state p { font-size: 14px; line-height: 1.7; }
+
+.error-msg {
+  margin-bottom: 16px;
+  color: var(--red);
+  font-size: 13px;
+}
+
+@media (max-width: 700px) {
+  .view {
+    padding: 20px 16px;
+  }
+}
 </style>

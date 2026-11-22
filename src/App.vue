@@ -4,12 +4,13 @@
       <span class="logo">
         <span class="logo-dot">◆</span> job.seeker
       </span>
-      <nav class="nav">
+      <nav class="nav" aria-label="Main navigation">
         <button
           v-for="tab in tabs"
           :key="tab.id"
           class="nav-btn"
           :class="{ active: activeTab === tab.id }"
+          :aria-current="activeTab === tab.id ? 'page' : undefined"
           @click="activeTab = tab.id"
         >
           {{ tab.label }}
@@ -18,13 +19,20 @@
     </header>
 
     <main class="main">
-      <SearchView     v-if="activeTab === 'search'" />
-      <SavedView      v-if="activeTab === 'saved'" />
-      <ApplicationsView v-if="activeTab === 'applications'" />
+      <KeepAlive>
+        <component :is="views[activeTab]" />
+      </KeepAlive>
     </main>
 
     <Transition name="toast">
-      <div v-if="toast" class="toast" :class="toast.type">
+      <div
+        v-if="toast"
+        class="toast"
+        :class="toast.type"
+        :role="toast.type === 'error' ? 'alert' : 'status'"
+        :aria-live="toast.type === 'error' ? 'assertive' : 'polite'"
+        aria-atomic="true"
+      >
         {{ toast.message }}
       </div>
     </Transition>
@@ -42,6 +50,12 @@ const tabs = [
   { id: 'saved',        label: 'Saved' },
   { id: 'applications', label: 'Applications' },
 ]
+
+const views = {
+  search: SearchView,
+  saved: SavedView,
+  applications: ApplicationsView,
+}
 
 const activeTab = ref('search')
 
@@ -142,5 +156,24 @@ provide('toast', showToast)
   background: var(--red-bg);
   color: var(--red);
   border: 1px solid rgba(248, 113, 113, 0.2);
+}
+
+@media (max-width: 520px) {
+  .header {
+    height: auto;
+    min-height: 52px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 16px;
+  }
+
+  .nav {
+    width: 100%;
+  }
+
+  .nav-btn {
+    flex: 1;
+    padding-inline: 8px;
+  }
 }
 </style>

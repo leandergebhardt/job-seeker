@@ -1,5 +1,5 @@
 <template>
-  <div class="view">
+  <div class="view" :aria-busy="loading">
     <div class="view-header">
       <div>
         <h2 class="view-title">Applications</h2>
@@ -9,6 +9,8 @@
         {{ loading ? '…' : '↺ Refresh' }}
       </button>
     </div>
+
+    <p v-if="error" class="error-msg" role="alert">{{ error }}</p>
 
     <!-- Status filter tabs -->
     <div class="filter-row">
@@ -25,12 +27,12 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="skeleton-list">
+    <div v-if="loading" class="skeleton-list" role="status" aria-label="Loading applications">
       <div v-for="n in 4" :key="n" class="skeleton" />
     </div>
 
     <!-- Empty -->
-    <div v-else-if="filtered.length === 0" class="empty-state">
+    <div v-else-if="filtered.length === 0 && !error" class="empty-state">
       <div class="empty-icon">◻</div>
       <p v-if="apps.length === 0">No applications yet.<br/>Find a job and click Apply to start tracking.</p>
       <p v-else>No applications with status <strong>{{ activeFilter }}</strong>.</p>
@@ -62,6 +64,7 @@
                 class="status-select"
                 :style="statusStyle(app.status)"
                 :value="app.status"
+                :aria-label="`Status for ${app.jobTitle} at ${app.company}`"
                 @change="updateStatus(app, $event.target.value)"
               >
                 <option v-for="s in STATUSES" :key="s" :value="s">{{ s }}</option>
@@ -70,7 +73,13 @@
             <td class="td-date">{{ formatDate(app.appliedAt) }}</td>
             <td class="td-notes">{{ app.notes || '—' }}</td>
             <td class="td-actions">
-              <button class="btn-delete" title="Delete" @click="remove(app)">✕</button>
+              <button
+                class="btn-delete"
+                :aria-label="`Delete application for ${app.jobTitle} at ${app.company}`"
+                @click="remove(app)"
+              >
+                ✕
+              </button>
             </td>
           </tr>
         </tbody>
@@ -107,6 +116,7 @@ const STATUS_STYLE = {
 const apps         = ref([])
 const loading      = ref(false)
 const activeFilter = ref('ALL')
+const error        = ref('')
 
 const filtered = computed(() =>
   activeFilter.value === 'ALL'
@@ -129,10 +139,11 @@ function formatDate(d) {
 
 async function load() {
   loading.value = true
+  error.value = ''
   try {
     apps.value = await appsApi.list()
   } catch (e) {
-    showToast(e.message, 'error')
+    error.value = e.message
   } finally {
     loading.value = false
   }
@@ -150,6 +161,9 @@ async function updateStatus(app, status) {
 }
 
 async function remove(app) {
+  const confirmed = window.confirm(`Delete the application for ${app.jobTitle} at ${app.company}?`)
+  if (!confirmed) return
+
   try {
     await appsApi.remove(app.id)
     apps.value = apps.value.filter(a => a.id !== app.id)
@@ -165,6 +179,12 @@ onMounted(load)
 <style scoped>
 .view {
   padding: 28px 32px;
+}
+
+.error-msg {
+  margin-bottom: 16px;
+  color: var(--red);
+  font-size: 13px;
 }
 
 .view-header {
@@ -329,4 +349,10 @@ td { padding: 12px 14px; vertical-align: middle; }
 
 .empty-state p { font-size: 14px; line-height: 1.7; }
 .empty-state strong { color: var(--text); font-weight: 500; }
+
+@media (max-width: 700px) {
+  .view {
+    padding: 20px 16px;
+  }
+}
 </style>

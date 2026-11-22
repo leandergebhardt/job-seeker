@@ -4,56 +4,62 @@
     <div class="search-bar">
       <div class="search-row">
         <div class="field-wrap">
-          <span class="field-icon">⌕</span>
+          <span class="field-icon" aria-hidden="true">⌕</span>
           <input
             v-model="params.title"
             class="search-input"
             type="text"
             placeholder="Job title, e.g. Data Engineer"
-            @keydown.enter="search"
+            aria-label="Job title"
+            @keydown.enter="search()"
           />
         </div>
         <div class="field-wrap field-wrap--sm">
-          <span class="field-icon">◎</span>
+          <span class="field-icon" aria-hidden="true">◎</span>
           <input
             v-model="params.location"
             class="search-input"
             type="text"
             placeholder="Location"
-            @keydown.enter="search"
+            aria-label="Location"
+            @keydown.enter="search()"
           />
         </div>
         <div class="field-wrap field-wrap--xs">
-          <select v-model.number="params.limit" class="search-select">
+          <select v-model.number="params.limit" class="search-select" aria-label="Results per page">
             <option :value="10">10</option>
             <option :value="25">25</option>
             <option :value="50">50</option>
           </select>
         </div>
-        <button class="btn-search" :disabled="loading" @click="search">
+        <button class="btn-search" :disabled="loading" @click="search()">
           {{ loading ? 'Searching…' : 'Search' }}
         </button>
       </div>
 
-      <p v-if="error" class="error-msg">{{ error }}</p>
+      <p v-if="error" class="error-msg" role="alert">{{ error }}</p>
     </div>
 
     <!-- Results -->
-    <div class="results">
+    <div class="results" :aria-busy="loading">
       <!-- Empty / idle state -->
       <div v-if="!searched" class="empty-state">
-        <div class="empty-icon">⌕</div>
+        <div class="empty-icon" aria-hidden="true">⌕</div>
         <p>Search for jobs to get started.<br/>Defaulting to <strong>Germany</strong> — adjust location as needed.</p>
       </div>
 
+      <div v-else-if="loading && results.length === 0" class="empty-state" role="status">
+        <p>Searching for jobs…</p>
+      </div>
+
       <div v-else-if="results.length === 0 && !loading" class="empty-state">
-        <div class="empty-icon">∅</div>
+        <div class="empty-icon" aria-hidden="true">∅</div>
         <p>No results found. Try broadening your search.</p>
       </div>
 
       <div v-else class="result-list">
         <div v-if="results.length" class="result-count">
-          {{ results.length }} result{{ results.length !== 1 ? 's' : '' }}
+          Results {{ params.offset + 1 }}–{{ params.offset + results.length }}
         </div>
         <JobCard
           v-for="job in results"
@@ -63,6 +69,25 @@
           @toggle-save="toggleSave"
           @apply="openApply"
         />
+        <nav class="pagination" aria-label="Search result pages">
+          <button
+            class="page-btn"
+            :disabled="loading || paginationStale || params.offset === 0"
+            aria-label="Previous results page"
+            @click="search(params.offset - params.limit)"
+          >
+            Previous
+          </button>
+          <span class="page-indicator">Page {{ Math.floor(params.offset / params.limit) + 1 }}</span>
+          <button
+            class="page-btn"
+            :disabled="loading || paginationStale || !hasMore"
+            aria-label="Next results page"
+            @click="search(params.offset + params.limit)"
+          >
+            Next
+          </button>
+        </nav>
       </div>
     </div>
   </div>
@@ -75,7 +100,7 @@
 </template>
 
 <script setup>
-import { ref, inject } from 'vue'
+import { ref, computed, inject, onDeactivated } from 'vue'
 import { jobsApi } from '../api.js'
 import JobCard    from '../components/JobCard.vue'
 import ApplyModal from '../components/ApplyModal.vue'
@@ -88,20 +113,52 @@ const loading  = ref(false)
 const savingId = ref(null)
 const searched = ref(false)
 const error    = ref('')
+const hasMore  = ref(false)
+const lastSearchKey = ref('')
+const paginationStale = computed(() =>
+  lastSearchKey.value !== JSON.stringify([params.value.title, params.value.location, params.value.limit])
+)
 
 const modalOpen  = ref(false)
 const selectedJob = ref(null)
+let searchController = null
+let latestSearchId = 0
 
-async function search() {
+async function search(offset = 0) {
+  const requestId = ++latestSearchId
+  const queryKey = JSON.stringify([params.value.title, params.value.location, params.value.limit])
+  const limit = params.value.limit
+  searchController?.abort()
+  searchController = new AbortController()
   loading.value  = true
   error.value    = ''
   searched.value = true
+  if (offset === 0) {
+    params.value.offset = 0
+    results.value = []
+    hasMore.value = false
+  }
+
   try {
-    results.value = await jobsApi.search(params.value)
+    const page = await jobsApi.search({ ...params.value, offset }, { signal: searchController.signal })
+    if (requestId !== latestSearchId) return
+
+    if (offset > 0 && page.length === 0) {
+      hasMore.value = false
+      error.value = 'No further results found.'
+      return
+    }
+
+    params.value.offset = offset
+    results.value = page
+    hasMore.value = page.length === limit
+    lastSearchKey.value = queryKey
   } catch (e) {
-    error.value = e.message
+    if (e.name !== 'AbortError' && requestId === latestSearchId) {
+      error.value = e.message
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestSearchId) loading.value = false
   }
 }
 
@@ -130,6 +187,10 @@ function openApply(job) {
 function onApplied() {
   showToast('Application recorded')
 }
+
+onDeactivated(() => {
+  if (modalOpen.value) modalOpen.value = false
+})
 </script>
 
 <style scoped>
@@ -151,6 +212,7 @@ function onApplied() {
   display: flex;
   gap: 8px;
   align-items: stretch;
+  min-width: 0;
 }
 
 .field-wrap {
@@ -244,5 +306,70 @@ function onApplied() {
   margin-bottom: 6px;
   font-variant-numeric: tabular-nums;
   font-family: ui-monospace, monospace;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.page-btn {
+  padding: 6px 12px;
+  color: var(--text);
+  background: var(--raised);
+}
+
+.page-btn:disabled {
+  color: var(--muted);
+}
+
+.page-indicator {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 700px) {
+  .search-bar,
+  .results {
+    padding: 16px;
+  }
+
+  .search-row {
+    flex-wrap: wrap;
+  }
+
+  .field-wrap {
+    flex: 1 1 220px;
+  }
+
+  .field-wrap--sm {
+    flex: 1 1 160px;
+  }
+
+  .field-wrap--xs {
+    flex: 0 0 90px;
+  }
+
+  .btn-search {
+    flex: 1 0 100%;
+  }
+
+  .empty-state {
+    padding: 48px 16px;
+  }
+}
+
+@media (max-width: 420px) {
+  .field-wrap,
+  .field-wrap--sm {
+    flex-basis: 100%;
+  }
+
+  .field-wrap--xs {
+    flex-basis: 100%;
+  }
 }
 </style>
